@@ -37,7 +37,7 @@ mini-agent/
 ├── session_logger.py    # Session logging (JSON, per-task)
 ├── tasks/               # Predefined task files
 ├── .env.example         # Config template
-├── logs/                # Auto-generated session logs
+├── output/              # Auto-generated session logs + task outputs
 └── devlog/              # Design documents
 ```
 
@@ -45,11 +45,11 @@ mini-agent/
 
 | File | Lines | Purpose |
 |------|-------|---------|
-| `mini_agent.py` | ~165 | Agent loop + tool definitions (bash, write_file, read_file, edit) |
-| `llm.py` | ~25 | Unified entry point — Claude Code CLI first, OpenRouter fallback |
-| `llm_claude_code.py` | ~90 | Delegate entire task to `claude -p` (CC handles agent loop internally) |
-| `llm_openrouter.py` | ~130 | OpenRouter client with standardized `ChatResult` / `ToolCall` types |
-| `session_logger.py` | ~100 | Per-session JSON logger, plugs into agent with ~5 lines |
+| `mini_agent.py` | ~170 | Agent loop + tool definitions (bash, write_file, read_file, edit) |
+| `llm.py` | ~30 | Unified entry point — Claude Code CLI first, OpenRouter fallback |
+| `llm_claude_code.py` | ~100 | Delegate entire task to `claude -p` (CC handles agent loop internally) |
+| `llm_openrouter.py` | ~135 | OpenRouter client with standardized `ChatResult` / `ToolCall` types |
+| `session_logger.py` | ~105 | Per-session JSON logger, plugs into agent with ~5 lines |
 
 ## Quick Start
 
@@ -113,7 +113,7 @@ The agent has 4 tools — the same set as [pi](https://github.com/badlogic/pi-mo
 
 ## Session Logging
 
-Every run generates a JSON log in `logs/`, recording:
+Every run generates a JSON log in `output/`, recording:
 
 - Session ID, model, task, elapsed time
 - Each turn: LLM input summary, output text, tool calls requested
