@@ -13,7 +13,7 @@ Minimal Agent — 用 ~80 行 Python 演示 pi 的核心架构
 """
 
 import json, subprocess, os, sys
-from llm_openrouter import chat, make_tool_result_message, MODEL
+from llm import chat, make_tool_result_message, MODEL, BACKEND
 from session_logger import SessionLogger
 
 sys.stdout.reconfigure(encoding="utf-8")
@@ -103,7 +103,7 @@ SYSTEM = "You are a minimal coding agent with bash, write_file, read_file, edit 
 
 
 def agent_loop(task: str):
-    print(f"\n{'='*60}\n  TASK: {task}\n  MODEL: {MODEL}\n{'='*60}")
+    print(f"\n{'='*60}\n  TASK: {task}\n  MODEL: {MODEL} ({BACKEND})\n{'='*60}")
 
     log = SessionLogger(task, MODEL)                            # +1
 
@@ -133,7 +133,7 @@ def agent_loop(task: str):
 
         # 4) 执行所有工具调用，收集结果
         #    先把 assistant 消息（含 tool_calls）追加到历史
-        messages.append(result.raw.choices[0].message)
+        messages.append(result.message)
 
         for tc in result.tool_calls:
             print(f"\n  > {tc.name}({json.dumps(tc.args, ensure_ascii=False)[:120]})")

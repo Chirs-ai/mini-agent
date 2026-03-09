@@ -22,8 +22,11 @@ load_dotenv()
 
 # ── 配置 ─────────────────────────────────────────────────────────
 
-API_KEY = os.environ["OPENROUTER_API_KEY"]
+API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
 MODEL = os.environ.get("MODEL", "anthropic/claude-sonnet-4")
+
+if not API_KEY:
+    raise ImportError("OPENROUTER_API_KEY not set in environment or .env")
 
 _client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=API_KEY)
 
@@ -47,6 +50,18 @@ class ChatResult:
     def finished(self) -> bool:
         """没有工具调用 = 对话结束"""
         return len(self.tool_calls) == 0
+
+    @property
+    def message(self) -> dict:
+        """返回可序列化的 assistant 消息 dict，供追加到 messages 历史。"""
+        msg = {"role": "assistant", "content": self.text}
+        if self.tool_calls:
+            msg["tool_calls"] = [
+                {"id": tc.id, "type": "function",
+                 "function": {"name": tc.name, "arguments": json.dumps(tc.args)}}
+                for tc in self.tool_calls
+            ]
+        return msg
 
 
 # ── 工具格式转换 ─────────────────────────────────────────────────
