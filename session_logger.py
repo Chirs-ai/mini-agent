@@ -1,16 +1,14 @@
 """
 Session Logger — 记录 agent 完整调用过程
 
-每个 task 一个 session，生成独立的 JSON 日志文件。
-记录：session 元信息、每轮 LLM 输入/输出、工具调用/结果、模型推理与决策。
-
-日志保存在 logs/ 目录，文件名格式：{timestamp}_{session_id[:8]}.json
+每个 task 创建独立工作目录：output/{timestamp}_{session_id[:8]}/
+agent 生成的文件和 session 日志全部存入该目录。
 
 用法（在 agent 中只需 ~5 行）：
     from session_logger import SessionLogger
 
     log = SessionLogger(task, model)
-    result = chat(messages, tools=TOOLS)
+    work_dir = log.work_dir             # agent 工具在此目录下操作
     log.log_turn(messages, result)
     log.log_tool(tc.name, tc.args, output)
     log.save()
@@ -28,6 +26,11 @@ class SessionLogger:
         self.start_time = time.time()
         self.turns: list[dict] = []
         self._current_turn: dict | None = None
+
+        # 创建工作目录：output/{timestamp}_{session_id[:8]}/
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.work_dir = os.path.join("output", f"{ts}_{self.session_id[:8]}")
+        os.makedirs(self.work_dir, exist_ok=True)
 
     # ── 每轮调用 ─────────────────────────────────────────────────
 
@@ -61,22 +64,21 @@ class SessionLogger:
     # ── 保存 ─────────────────────────────────────────────────────
 
     def save(self) -> str:
-        """保存日志到 logs/ 目录，返回文件路径。"""
+        """保存日志到工作目录，返回文件路径。"""
         elapsed = round(time.time() - self.start_time, 2)
-        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
 
         doc = {
             "session_id": self.session_id,
             "model": self.model,
             "task": self.task,
+            "work_dir": self.work_dir,
             "start_time": datetime.fromtimestamp(self.start_time).isoformat(),
             "elapsed_seconds": elapsed,
             "total_turns": len(self.turns),
             "turns": self.turns,
         }
 
-        os.makedirs("logs", exist_ok=True)
-        path = f"logs/{ts}_{self.session_id[:8]}.json"
+        path = os.path.join(self.work_dir, "session.json")
         with open(path, "w", encoding="utf-8") as f:
             json.dump(doc, f, ensure_ascii=False, indent=2)
 

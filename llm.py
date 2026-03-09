@@ -1,30 +1,31 @@
 """
-统一 LLM 接口 — 优先 Claude Code CLI，回退 OpenRouter API
+统一 LLM 接口 — 通过 .env BACKEND 选择后端（默认 openrouter）
 
 用法：
     from llm import chat, make_tool_result_message, MODEL, BACKEND
 """
 
-BACKEND = None
+import os
+from dotenv import load_dotenv
 
-# 优先尝试 Claude Code CLI
-try:
-    from llm_claude_code import is_available
-    if is_available():
+load_dotenv()
+
+BACKEND = os.environ.get("BACKEND", "openrouter").lower()
+
+if BACKEND == "claude-code":
+    try:
+        from llm_claude_code import is_available
+        if not is_available():
+            raise RuntimeError("Claude Code CLI (claude) not found in PATH")
         from llm_claude_code import chat, make_tool_result_message, MODEL, ChatResult, ToolCall
-        BACKEND = "claude-code"
-except Exception:
-    pass
-
-# 回退到 OpenRouter API
-if BACKEND is None:
+    except ImportError as e:
+        raise RuntimeError(f"Claude Code backend failed: {e}")
+else:
+    BACKEND = "openrouter"
     try:
         from llm_openrouter import chat, make_tool_result_message, MODEL, ChatResult, ToolCall
-        BACKEND = "openrouter"
     except Exception as e:
         raise RuntimeError(
-            f"No LLM backend available.\n"
-            f"  - Claude Code CLI: not found in PATH\n"
-            f"  - OpenRouter: {e}\n"
-            f"Install Claude Code (npm i -g @anthropic-ai/claude-code) or set OPENROUTER_API_KEY in .env"
+            f"OpenRouter backend failed: {e}\n"
+            f"Check OPENROUTER_API_KEY and MODEL in .env"
         )

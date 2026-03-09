@@ -67,33 +67,37 @@ TOOLS = [
 ]
 
 
-def execute_tool(name: str, args: dict) -> str:
-    """执行一个工具调用，返回文本结果。"""
+def execute_tool(name: str, args: dict, work_dir: str = ".") -> str:
+    """执行一个工具调用，返回文本结果。所有文件操作相对于 work_dir。"""
     if name == "bash":
         r = subprocess.run(
-            args["command"], shell=True, capture_output=True, text=True, timeout=30
+            args["command"], shell=True, capture_output=True, text=True,
+            timeout=30, cwd=work_dir,
         )
         return (r.stdout + r.stderr).strip() or "(no output)"
     elif name == "write_file":
-        os.makedirs(os.path.dirname(args["path"]) or ".", exist_ok=True)
-        with open(args["path"], "w", encoding="utf-8") as f:
+        path = os.path.join(work_dir, args["path"])
+        os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
             f.write(args["content"])
         return f"OK, written to {args['path']}"
     elif name == "read_file":
-        with open(args["path"], encoding="utf-8") as f:
+        path = os.path.join(work_dir, args["path"])
+        with open(path, encoding="utf-8") as f:
             return f.read()
     elif name == "edit":
-        path, old, new = args["path"], args["old_text"], args["new_text"]
+        path = os.path.join(work_dir, args["path"])
+        old, new = args["old_text"], args["new_text"]
         with open(path, "r", encoding="utf-8") as f:
             content = f.read()
         count = content.count(old)
         if count == 0:
-            return f"Error: old_text not found in {path}"
+            return f"Error: old_text not found in {args['path']}"
         if count > 1:
-            return f"Error: old_text matches {count} locations in {path}. Provide more context to make it unique."
+            return f"Error: old_text matches {count} locations in {args['path']}. Provide more context to make it unique."
         with open(path, "w", encoding="utf-8") as f:
             f.write(content.replace(old, new, 1))
-        return f"OK, edited {path}"
+        return f"OK, edited {args['path']}"
     return "Unknown tool"
 
 
@@ -106,6 +110,8 @@ def agent_loop(task: str):
     print(f"\n{'='*60}\n  TASK: {task}\n  MODEL: {MODEL} ({BACKEND})\n{'='*60}")
 
     log = SessionLogger(task, MODEL)                            # +1
+    work_dir = log.work_dir
+    print(f"  WORK DIR: {work_dir}")
 
     messages = [
         {"role": "system", "content": SYSTEM},
@@ -138,7 +144,7 @@ def agent_loop(task: str):
         for tc in result.tool_calls:
             print(f"\n  > {tc.name}({json.dumps(tc.args, ensure_ascii=False)[:120]})")
             try:
-                output = execute_tool(tc.name, tc.args)
+                output = execute_tool(tc.name, tc.args, work_dir)
                 log.log_tool(tc.name, tc.args, output)          # +4
             except Exception as e:
                 output = f"Error: {e}"
