@@ -4,3 +4,6 @@ __pycache__/
 logs/
 collatz_art.py
 pick_nums.py
+task_app.py
+test_task_app.py
+tasks.json

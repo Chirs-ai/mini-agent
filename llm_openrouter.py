@@ -111,10 +111,10 @@ def chat(
     calls = []
     if msg.tool_calls:
         for tc in msg.tool_calls:
-            calls.append(ToolCall(
-                id=tc.id,
-                name=tc.function.name,
-                args=json.loads(tc.function.arguments),
-            ))
+            try:
+                args = json.loads(tc.function.arguments)
+            except json.JSONDecodeError:
+                args = {"_raw": tc.function.arguments}
+            calls.append(ToolCall(id=tc.id, name=tc.function.name, args=args))
 
     return ChatResult(text=msg.content, tool_calls=calls, raw=resp)

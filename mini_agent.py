@@ -18,7 +18,7 @@ from session_logger import SessionLogger
 
 sys.stdout.reconfigure(encoding="utf-8")
 
-# ── 工具定义（pi 只用 4 个：read/write/edit/bash，我们用 3 个） ──────────
+# ── 工具定义（与 pi 相同的 4 个：read/write/edit/bash） ──────────
 
 TOOLS = [
     {
@@ -32,7 +32,7 @@ TOOLS = [
     },
     {
         "name": "write_file",
-        "description": "Write content to a file (creates dirs if needed).",
+        "description": "Create or overwrite a file with the given content.",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -49,6 +49,19 @@ TOOLS = [
             "type": "object",
             "properties": {"path": {"type": "string"}},
             "required": ["path"],
+        },
+    },
+    {
+        "name": "edit",
+        "description": "Replace an exact substring in a file. old_text must match exactly (including whitespace/indentation). Fails if old_text is not found or matches multiple locations — provide more surrounding context to make it unique.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "File to edit"},
+                "old_text": {"type": "string", "description": "Exact text to find (must be unique in file)"},
+                "new_text": {"type": "string", "description": "Replacement text"},
+            },
+            "required": ["path", "old_text", "new_text"],
         },
     },
 ]
@@ -69,12 +82,24 @@ def execute_tool(name: str, args: dict) -> str:
     elif name == "read_file":
         with open(args["path"], encoding="utf-8") as f:
             return f.read()
+    elif name == "edit":
+        path, old, new = args["path"], args["old_text"], args["new_text"]
+        with open(path, "r", encoding="utf-8") as f:
+            content = f.read()
+        count = content.count(old)
+        if count == 0:
+            return f"Error: old_text not found in {path}"
+        if count > 1:
+            return f"Error: old_text matches {count} locations in {path}. Provide more context to make it unique."
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(content.replace(old, new, 1))
+        return f"OK, edited {path}"
     return "Unknown tool"
 
 
 # ── 代理循环（这就是全部核心） ───────────────────────────────────
 
-SYSTEM = "You are a minimal coding agent with bash, write_file, read_file tools. Be concise. Accomplish the task step by step."
+SYSTEM = "You are a minimal coding agent with bash, write_file, read_file, edit tools. Prefer edit over write_file for modifying existing files. Be concise. Accomplish the task step by step."
 
 
 def agent_loop(task: str):
@@ -128,13 +153,12 @@ def agent_loop(task: str):
         # → 回到步骤 1
 
 
-# ── 让 agent 做一件不寻常的事 ────────────────────────────────────
-
 if __name__ == "__main__":
-    agent_loop(
-        "Pick 6 random integers between 1 and 10000. For each number, compute its "
-        "Collatz sequence (if even → n/2, if odd → 3n+1, until reaching 1). "
-        "Then write and run a Python script 'collatz_art.py' that visualizes all 6 "
-        "sequences as overlapping ASCII art mountain ranges in the terminal (80 cols wide). "
-        "Each sequence should use a different character. Show a legend at the bottom."
-    )
+    if len(sys.argv) > 1 and os.path.isfile(sys.argv[1]):
+        with open(sys.argv[1], encoding="utf-8") as f:
+            task = f.read().strip()
+    elif len(sys.argv) > 1:
+        task = " ".join(sys.argv[1:])
+    else:
+        task = input("Task: ")
+    agent_loop(task)

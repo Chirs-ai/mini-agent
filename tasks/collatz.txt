@@ -1,0 +1,1 @@
+Pick 6 random integers between 1 and 10000. For each number, compute its Collatz sequence (if even → n/2, if odd → 3n+1, until reaching 1). Then write and run a Python script 'collatz_art.py' that visualizes all 6 sequences as overlapping ASCII art mountain ranges in the terminal (80 cols wide). Each sequence should use a different character. Show a legend at the bottom.

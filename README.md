@@ -1,6 +1,6 @@
 # mini-agent
 
-A minimal coding agent in ~100 lines of Python, inspired by [pi](https://github.com/badlogic/pi-mono).
+A minimal coding agent in ~160 lines of Python, inspired by [pi](https://github.com/badlogic/pi-mono).
 
 ## Core Idea
 
@@ -30,9 +30,10 @@ No planner, no sub-agents, no MCP, no permission system. The model is smart enou
 
 ```
 mini-agent/
-├── mini_agent.py        # Agent core — loop + 3 tools (~100 lines)
+├── mini_agent.py        # Agent core — loop + 4 tools (~160 lines)
 ├── llm_openrouter.py    # OpenRouter API wrapper (OpenAI-compatible)
 ├── session_logger.py    # Session logging (JSON, per-task)
+├── tasks/               # Predefined task files
 ├── .env.example         # Config template
 ├── logs/                # Auto-generated session logs
 └── devlog/              # Design documents
@@ -42,7 +43,7 @@ mini-agent/
 
 | File | Lines | Purpose |
 |------|-------|---------|
-| `mini_agent.py` | ~140 | Agent loop + tool definitions (bash, write_file, read_file) |
+| `mini_agent.py` | ~165 | Agent loop + tool definitions (bash, write_file, read_file, edit) |
 | `llm_openrouter.py` | ~120 | OpenRouter client with standardized `ChatResult` / `ToolCall` types |
 | `session_logger.py` | ~100 | Per-session JSON logger, plugs into agent with ~5 lines |
 
@@ -57,7 +58,9 @@ cp .env.example .env    # fill in your OpenRouter API key and model
 pip install openai python-dotenv
 
 # 3. Run
-python mini_agent.py
+python mini_agent.py tasks/collatz.txt          # from task file
+python mini_agent.py "write a hello world"      # inline task
+python mini_agent.py                            # interactive prompt
 ```
 
 ## Configuration
@@ -81,13 +84,14 @@ Supported models (via [OpenRouter](https://openrouter.ai/models)):
 
 ## Tools
 
-The agent has 3 tools (inspired by pi's minimal 4-tool set):
+The agent has 4 tools — the same set as [pi](https://github.com/badlogic/pi-mono):
 
 | Tool | Description |
 |------|-------------|
 | `bash` | Run a shell command, return stdout+stderr |
-| `write_file` | Write content to a file (auto-creates directories) |
+| `write_file` | Create or overwrite a file (auto-creates directories) |
 | `read_file` | Read a file and return its content |
+| `edit` | Replace an exact substring in a file (must be unique match) |
 
 ## Session Logging
 
@@ -115,9 +119,11 @@ Every run generates a JSON log in `logs/`, recording:
 }
 ```
 
-## Example Output
+## Example Tasks
 
-Default task: compute Collatz sequences for 6 random numbers, visualize as ASCII mountain ranges.
+### Collatz ASCII Art (`tasks/collatz.txt`)
+
+Compute Collatz sequences for random numbers, visualize as overlapping ASCII mountain ranges:
 
 ```
 ***  COLLATZ SEQUENCE MOUNTAIN RANGES  ***
@@ -131,22 +137,34 @@ Default task: compute Collatz sequences for 6 random numbers, visualize as ASCII
 |%*%~~%%%%%%%%*%%*%%~~%%*@~~~*@*************** *   *%  #  %                      |
 |~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ |
 +--------------------------------------------------------------------------------+
-
-  LEGEND:
-  Char   Start n   Steps     Peak value
-  #         6619     137         50,272
-  @         6239      49         94,768
-  *         3279     105         95,956
-  %         9822     122         59,776
-  +         2930      35          4,948
-  ~         3773      38         11,320
 ```
+
+### CLI Task Manager (`tasks/task_manager.txt`)
+
+Build a task manager, test it, then **edit** (not rewrite) to add priority + stats — 28 turns, 31/31 tests pass:
+
+```
+$ python task_app.py add "Fix critical bug" --priority high
+Added task #1 [high]: Fix critical bug
+
+$ python task_app.py stats
+=== Task Statistics ===
+  Total   : 5
+  Done    : 2
+  Pending : 3
+  Progress: [############------------------] 40.0%
+  High    : 1/2 done
+  Medium  : 1/1 done
+  Low     : 0/2 done
+```
+
+The agent used `edit` 7 times to surgically add features to existing code without rewriting the file.
 
 ## Design Philosophy
 
 This project demonstrates that a useful coding agent needs very little infrastructure:
 
-1. **Minimal core** — One loop, three tools, zero abstractions
+1. **Minimal core** — One loop, four tools, zero abstractions
 2. **Model does the thinking** — No planner, no state machine; the LLM decides what to do next
 3. **Self-correction** — Errors from tool execution feed back as context; the model adapts
 4. **Swappable LLM** — Change one line in `.env` to switch between any model

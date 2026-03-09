@@ -1,0 +1,9 @@
+Build a CLI task manager (task_app.py) with these steps:
+1. Write the initial version: a single-file Python CLI that stores tasks in tasks.json. Support commands: add <text>, list, done <id>, remove <id>. Each task has id, text, done status, created_at.
+2. Run it: add 3 tasks, mark one done, list them, verify output is correct.
+3. Now EDIT the existing file to add two features:
+   a) Priority levels (--priority high/medium/low, default medium). 'list' sorts by priority.
+   b) A 'stats' command showing total/done/pending counts and a completion percentage bar.
+4. Test the new features: add tasks with different priorities, complete some, run 'stats'.
+5. Write and run a test script (test_task_app.py) that exercises all commands and verifies correctness.
+Use 'edit' tool for step 3 modifications — do NOT rewrite the entire file.
