@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+.env
+logs/
+collatz_art.py
+pick_nums.py

@@ -1,0 +1,140 @@
+"""
+Minimal Agent — 用 ~80 行 Python 演示 pi 的核心架构
+
+核心循环：
+    messages[] → LLM → tool_calls? → execute → append results → repeat
+
+就这么简单。没有规划模式、没有子代理、没有 MCP，只有循环。
+
+用法：
+    1. cp .env.example .env  # 填入 OpenRouter key 和模型
+    2. pip install openai python-dotenv
+    3. python mini_agent.py
+"""
+
+import json, subprocess, os, sys
+from llm_openrouter import chat, make_tool_result_message, MODEL
+from session_logger import SessionLogger
+
+sys.stdout.reconfigure(encoding="utf-8")
+
+# ── 工具定义（pi 只用 4 个：read/write/edit/bash，我们用 3 个） ──────────
+
+TOOLS = [
+    {
+        "name": "bash",
+        "description": "Run a bash command, return stdout+stderr.",
+        "input_schema": {
+            "type": "object",
+            "properties": {"command": {"type": "string"}},
+            "required": ["command"],
+        },
+    },
+    {
+        "name": "write_file",
+        "description": "Write content to a file (creates dirs if needed).",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string"},
+                "content": {"type": "string"},
+            },
+            "required": ["path", "content"],
+        },
+    },
+    {
+        "name": "read_file",
+        "description": "Read a file and return its content.",
+        "input_schema": {
+            "type": "object",
+            "properties": {"path": {"type": "string"}},
+            "required": ["path"],
+        },
+    },
+]
+
+
+def execute_tool(name: str, args: dict) -> str:
+    """执行一个工具调用，返回文本结果。"""
+    if name == "bash":
+        r = subprocess.run(
+            args["command"], shell=True, capture_output=True, text=True, timeout=30
+        )
+        return (r.stdout + r.stderr).strip() or "(no output)"
+    elif name == "write_file":
+        os.makedirs(os.path.dirname(args["path"]) or ".", exist_ok=True)
+        with open(args["path"], "w", encoding="utf-8") as f:
+            f.write(args["content"])
+        return f"OK, written to {args['path']}"
+    elif name == "read_file":
+        with open(args["path"], encoding="utf-8") as f:
+            return f.read()
+    return "Unknown tool"
+
+
+# ── 代理循环（这就是全部核心） ───────────────────────────────────
+
+SYSTEM = "You are a minimal coding agent with bash, write_file, read_file tools. Be concise. Accomplish the task step by step."
+
+
+def agent_loop(task: str):
+    print(f"\n{'='*60}\n  TASK: {task}\n  MODEL: {MODEL}\n{'='*60}")
+
+    log = SessionLogger(task, MODEL)                            # +1
+
+    messages = [
+        {"role": "system", "content": SYSTEM},
+        {"role": "user", "content": task},
+    ]
+    turn = 0
+
+    while True:
+        turn += 1
+        print(f"\n── turn {turn} ──")
+
+        # 1) 调用 LLM（通过 OpenRouter）
+        result = chat(messages, tools=TOOLS)
+        log.log_turn(messages, result)                          # +2
+
+        # 2) 打印文本输出
+        if result.text:
+            print(f"\n{result.text}")
+
+        # 3) 没有工具调用 → 结束
+        if result.finished:
+            path = log.save()                                   # +3
+            print(f"\n{'='*60}\n  DONE ({turn} turns) | log: {path}\n{'='*60}")
+            return
+
+        # 4) 执行所有工具调用，收集结果
+        #    先把 assistant 消息（含 tool_calls）追加到历史
+        messages.append(result.raw.choices[0].message)
+
+        for tc in result.tool_calls:
+            print(f"\n  > {tc.name}({json.dumps(tc.args, ensure_ascii=False)[:120]})")
+            try:
+                output = execute_tool(tc.name, tc.args)
+                log.log_tool(tc.name, tc.args, output)          # +4
+            except Exception as e:
+                output = f"Error: {e}"
+                log.log_tool(tc.name, tc.args, output, error=str(e))  # +5
+            if len(output) > 8000:
+                output = output[:8000] + "\n... (truncated)"
+            print(f"    {output[:300]}")
+
+            # 5) 每个工具结果作为独立 tool message 追加
+            messages.append(make_tool_result_message(tc.id, output))
+
+        # → 回到步骤 1
+
+
+# ── 让 agent 做一件不寻常的事 ────────────────────────────────────
+
+if __name__ == "__main__":
+    agent_loop(
+        "Pick 6 random integers between 1 and 10000. For each number, compute its "
+        "Collatz sequence (if even → n/2, if odd → 3n+1, until reaching 1). "
+        "Then write and run a Python script 'collatz_art.py' that visualizes all 6 "
+        "sequences as overlapping ASCII art mountain ranges in the terminal (80 cols wide). "
+        "Each sequence should use a different character. Show a legend at the bottom."
+    )
